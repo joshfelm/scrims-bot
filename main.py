@@ -105,13 +105,18 @@ async def on_message(message):
             info.add_field(name='See standings - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
             await message.channel.send(embed=info)
         elif args[0] == '!elo':
-            if (len(args) == 2):
-                url = "https://u.gg/lol/profile/euw1/{}/overview".format(args[1])
+            # Finds a given player's elo
+            if (len(args) >= 2):
+                profile = ''
+                for a in args[1:]:
+                    profile = profile + str(a) + ' '
+                profile = profile[:-1]
+                url = "https://u.gg/lol/profile/euw1/{}/overview".format(profile)
                 response = requests.get(url)
                 soup = BeautifulSoup(response.text, "html.parser")
                 aas = soup.find_all("div", class_="rank-text")
                 if not (len(aas) == 2):
-                    await message.channel.send('Could not find ranked information for this summoner (EUW)')
+                    await message.channel.send('Could not find ranked information for `' + profile + '` (EUW)')
                 else:
                     colstr = aas[0].find_all('strong')[0]['style'][7:]
                     if(colstr == ""):
@@ -121,7 +126,7 @@ async def on_message(message):
                         col = hex(int('ffffff', 16))
                     else:
                         col = hex(int(colstr, 16))
-                    elo=discord.Embed(title='Elo for: **__' + str(args[1]) + '__**', color=int(col, 16))
+                    elo=discord.Embed(title='Elo for: **__' + str(profile) + '__**', color=int(col, 16))
                     elo.add_field(name='Ranked Solo/Duo', value=aas[0].text, inline=True)
                     elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
                     await message.channel.send(embed=elo)
