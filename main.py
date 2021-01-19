@@ -104,6 +104,12 @@ async def on_message(message):
             info.add_field(name='Report score - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
             info.add_field(name='See standings - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
             await message.channel.send(embed=info)
+        elif args[0] == '!tip':
+            with open('lolfacts.txt') as f:
+                content = f.readlines()
+            # you may also want to remove whitespace characters like `\n` at the end of each line
+            content = [x.strip() for x in content] 
+            await message.channel.send(content[random.randint(0,len(content)-1)])
         elif args[0] == '!elo':
             # Finds a given player's elo
             if (len(args) >= 2):
@@ -115,7 +121,6 @@ async def on_message(message):
                 response = requests.get(url)
                 soup = BeautifulSoup(response.text, "html.parser")
                 aas = soup.find_all("div", class_="rank-text")
-                print(aas)
                 if (len(aas) == 0):
                     await message.channel.send('Could not find ranked information for `' + profile + '` (EUW)')
                 else:
@@ -131,6 +136,7 @@ async def on_message(message):
                     elo.add_field(name='Ranked Solo/Duo', value=aas[0].text, inline=True)
                     if len(aas) == 2:
                         elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
+                    elo.set_footer(text='Stats according to u.gg')
                     await message.channel.send(embed=elo)
             else:
                 await message.channel.send('Enter the name of the player to lookup')
