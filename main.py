@@ -115,7 +115,8 @@ async def on_message(message):
                 response = requests.get(url)
                 soup = BeautifulSoup(response.text, "html.parser")
                 aas = soup.find_all("div", class_="rank-text")
-                if not (len(aas) == 2):
+                print(aas)
+                if (len(aas) == 0):
                     await message.channel.send('Could not find ranked information for `' + profile + '` (EUW)')
                 else:
                     colstr = aas[0].find_all('strong')[0]['style'][7:]
@@ -128,7 +129,8 @@ async def on_message(message):
                         col = hex(int(colstr, 16))
                     elo=discord.Embed(title='Elo for: **__' + str(profile) + '__**', color=int(col, 16))
                     elo.add_field(name='Ranked Solo/Duo', value=aas[0].text, inline=True)
-                    elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
+                    if len(aas) == 2:
+                        elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
                     await message.channel.send(embed=elo)
             else:
                 await message.channel.send('Enter the name of the player to lookup')
