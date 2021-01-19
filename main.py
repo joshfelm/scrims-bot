@@ -83,14 +83,17 @@ async def on_message(message):
         await message.channel.send('9 players in q')
     # Nsfw message
     if message.content.startswith('!') and ('porn' in message.content or 'nsfw' in message.content or 'hentai' in message.content):
-        url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
-        response = requests.get(url)
-        soup = BeautifulSoup(response.text, "html.parser")
-        aas = soup.find_all("span", class_="thumb")
-        response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
-        soup = BeautifulSoup(response.text, "html.parser")
-        aas = soup.find_all("img")
-        await message.channel.send(aas[2]['src'])
+        if message.channel.nsfw:
+            url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, "html.parser")
+            aas = soup.find_all("span", class_="thumb")
+            response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
+            soup = BeautifulSoup(response.text, "html.parser")
+            aas = soup.find_all("img")
+            await message.channel.send(aas[2]['src'])
+        else:
+            await message.channel.send('Not an nsfw channel you horny bastard xx')
     else:
         # Information
         if args[0] == '!info':
@@ -101,8 +104,41 @@ async def on_message(message):
             info.add_field(name='Report score - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
             info.add_field(name='See standings - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
             await message.channel.send(embed=info)
+        elif args[0] == '!elo':
+            if (len(args) == 2):
+                url = "https://u.gg/lol/profile/euw1/{}/overview".format(args[1])
+                response = requests.get(url)
+                soup = BeautifulSoup(response.text, "html.parser")
+                aas = soup.find_all("div", class_="rank-text")
+                if not (len(aas) == 2):
+                    await message.channel.send('Could not find ranked information for this summoner (EUW)')
+                else:
+                    colstr = aas[0].find_all('strong')[0]['style'][7:]
+                    if(colstr == ""):
+                        colstr = aas[1].find_all('strong')[0]['style'][7:]
+                    col = 'ffffff'
+                    if (len(colstr) == 0):
+                        col = hex(int('ffffff', 16))
+                    else:
+                        col = hex(int(colstr, 16))
+                    elo=discord.Embed(title='Elo for: **__' + str(args[1]) + '__**', color=int(col, 16))
+                    elo.add_field(name='Ranked Solo/Duo', value=aas[0].text, inline=True)
+                    elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
+                    await message.channel.send(embed=elo)
+            else:
+                await message.channel.send('Enter the name of the player to lookup')
+        elif args[0] == '!cefsmitesim':
+            smitechance = random.randint(0,100)
+            if smitechance >= 95:
+                await message.channel.send('Uh oh, youcef smited your cannon!')
+            elif smitechance >= 85:
+                await message.channel.send('Youcef successfully smited drake!')
+            elif smitechance >= 75:
+                await message.channel.send('What the fuck, Youcef is farming krugs')
+            else:
+                await message.channel.send('Youcef missed smite! (AGAIN)')
         # Show table
-        if args[0] == '!table' or args[0] == '!leaderboard':
+        elif args[0] == '!table' or args[0] == '!leaderboard':
             sql = "SELECT * FROM results ORDER BY w DESC"
             conn = sqlite3.connect('scrims.db')
             cursor = conn.cursor()
@@ -124,7 +160,7 @@ async def on_message(message):
                 pos+=1
             
             await message.channel.send(embed=table)
-        if args[0] == '!report':
+        elif args[0] == '!report':
             # Report score
             id = message.author.id
             team = 2
@@ -174,7 +210,7 @@ async def on_message(message):
                     conn.close()
                 gameTeam1 = []
                 gameTeam2 = []
-        if args[0] == '!show':
+        elif args[0] == '!show':
             # Show queue
             if len(q) > 0:
                 msg = ''
@@ -186,13 +222,13 @@ async def on_message(message):
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
         #COPYPASTAS
-        if args[0] == '!stfu' or args[0] == '!shut':
+        elif args[0] == '!stfu' or args[0] == '!shut':
             await message.channel.send("I know you have something to say and I know you're eager to say it so I'll get right to the point: Shut the fuck up. Nobody wants to hear it. Nobody will ever want to hear it. Nobody cares. And the fact that you thought someone might care is honestly baffling to me. I've actually pulled the entire world. Here's a composite of the faces of everybody who wants you to shut the fuck up. It seems as if this is a composite of every human being on the planet. Interesting. Now for a composite of the faces that want you to keep talking: Interesting it seems as if nothing has happened. Here's the world map. Now here's the text: Shit the fuck up. That's what you should do. But you know what? Maybe I am being a little too harsh here. I actually do have it on good authority thanks to my pulling data that there is as at least 1 person who actually wants to hear you speak. It's a little child in Mozambique and he- oh? He's dead? Well sorry man I guess nobody wants to hear you talk anymore. Please shut the fuck up. I'm not just telling you to shut up, I'm telling you to shut the FUCK up and you need to hear it. This is a public service. I have nothing to gain from this, except by telling YOU exactly what you need to hear. And on that note let me make this clear: This isn't a broad message I'm aiming at all of you, this is a message specifically pointed at you. That's right! You! You know who you are. And I'm sick of your shit. We all are. The only good you will ever do for humanity is refusing to participate in it. You can take a vow of silence, join a monastery, you can even just be a mime! Mimes are fun. But you kinda know that what I'm saying is true already don't you?")
             await message.channel.send("You understand that you really should shut the fuck up, why do you keep speaking? I'm genuinely curious. Why do you think you deserve to be heard? The core of what I'm getting at is that you are not a worthwhile person. You are not worth listening to. Everything you've said has been said before more eloquently and more coherently. And it's not that everything has been said we still need people to have discourse in order to say new things and discover new things about ourselves and humanity but you, you will never be those people so shut the fuck up.")
             await message.channel.send("<@245619552438845461>")
-        if args[0] == '!based':
+        elif args[0] == '!based':
             await message.channel.send("Based? Based on what? In your dick? Please shut the fuck up and use words properly you fuckin troglodyte, do you think God gave us a freedom of speech just to spew random words that have no meaning that doesn't even correllate to the topic of the conversation? Like please you always complain about why no one talks to you or no one expresses their opinions on you because you're always spewing random shit like poggers based cringe and when you try to explain what it is and you just say that it's funny like what? What the fuck is funny about that do you think you'll just become a stand-up comedian that will get a standing ovation just because you said \"cum\" in the stage? HELL NO YOU FUCKIN IDIOT, so please shut the fuck up and use words properly you dumb bitch")
-        if args[0] == '!leave':
+        elif args[0] == '!leave':
             # Leave queue
             if len(q) > 0:
                 id = str(message.author.id)
@@ -209,7 +245,7 @@ async def on_message(message):
                     await message.channel.send('You\'re not even in the queue!')
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
-        if args[0] == '!q':
+        elif args[0] == '!q':
             #Join q
             conn = sqlite3.connect('scrims.db')
             cursor = conn.cursor()
@@ -271,7 +307,7 @@ async def on_message(message):
                         team2Msg = team2Msg[:-1]
                         embed.add_field(name='-Team 2-', value=team2Msg, inline=True)
                         await message.channel.send(embed=embed)
-        if args[0] == '!removeroles' or args[0] == '!remove':
+        elif args[0] == '!removeroles' or args[0] == '!remove':
             #remove role
             if len(args) > 1:
                 conn = sqlite3.connect('scrims.db')
@@ -330,7 +366,7 @@ async def on_message(message):
                         conn.close()
             else:
                 await message.channel.send('Please specify roles you want to add')
-        if args[0] == '!addroles' or args[0] == '!add':
+        elif args[0] == '!addroles' or args[0] == '!add':
             # add role
             if len(args) > 1:
                 conn = sqlite3.connect('scrims.db')
@@ -396,7 +432,6 @@ async def on_message(message):
                                 value_of_field_1 = data[0][0]
                                 # get data from third object
                                 value_of_field_2 = data[2][1]
-                            # close database connection
                         else:
                             description = '(No change) ' + str(roles)
                         added=discord.Embed(title='Updated roles', description=description, color=0x76105b)
@@ -405,6 +440,7 @@ async def on_message(message):
                         if len(preexistingroles) > 0:
                             added.add_field(name='Preexisting roles (not added)', value=str(preexistingroles), inline=False)
                         await message.channel.send(embed=added)
+                        # close database connection
                         conn.commit()
                         conn.close()
             else:
