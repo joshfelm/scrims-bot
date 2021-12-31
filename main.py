@@ -1,4 +1,11 @@
 from bs4 import BeautifulSoup
+from selenium.webdriver import Chrome
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support import expected_conditions as ec
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+
 
 import requests
 import urllib.request
@@ -86,6 +93,7 @@ async def on_message(message):
         if message.channel.nsfw:
             url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
             response = requests.get(url)
+
             soup = BeautifulSoup(response.text, "html.parser")
             aas = soup.find_all("span", class_="thumb")
             response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
@@ -96,13 +104,17 @@ async def on_message(message):
             await message.channel.send('Not an nsfw channel you horny bastard xx')
     else:
         # Information
-        if args[0] == '!info':
+        if args[0] == '!info' or args[0] == '!help':
             info=discord.Embed(title='Commands:', color=0x76105b)
-            info.add_field(name='Adding roles - `!add`', value='Add your role using the `!addroles` or `!add` command. It would look something like \n`!addroles top jungle mid adc support` \nThis will automatically add you to the database on first use', inline=False)
-            info.add_field(name='Removing roles - `!remove`', value='Remove your roles in the same way using `!removeroles` or `!remove`', inline=False)
-            info.add_field(name='Queueing - `!q`', value='Use `!q` or `!queue` to queue up and `!leave` to leave', inline=False)
-            info.add_field(name='Report score - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
-            info.add_field(name='See standings - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
+            info.add_field(name='__Adding roles__ - `!add`', value='Add your role using the `!addroles` or `!add` command. It would look something like \n`!addroles top jungle mid adc support` \nThis will automatically add you to the database on first use', inline=False)
+            info.add_field(name='__Removing roles__ - `!remove`', value='Remove your roles in the same way using `!removeroles` or `!remove`', inline=False)
+            info.add_field(name='__Checking roles__ - `!roles`', value='Check to see your currently stored roles with `!roles` or `!checkroles`', inline=False)
+            info.add_field(name='__Queueing__ - `!q`', value='Use `!q` or `!queue` to queue up and `!leave` to leave', inline=False)
+            info.add_field(name='__Report score__ - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
+            info.add_field(name='__See standings__ - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
+            info.add_field(name='__Check elo__ - `!elo summoner`', value='Check your elo and have it come up in a text channel!', inline=False)
+            info.add_field(name='__See random tip__ - `!tip`', value='Get a random loading screen tip', inline=False)
+            info.add_field(name='`!cefsmitesim`', value='See if youcef was able to smite drake succesfully this time!', inline=False)
             await message.channel.send(embed=info)
         elif args[0] == '!tip':
             with open('lolfacts.txt') as f:
@@ -113,29 +125,55 @@ async def on_message(message):
         elif args[0] == '!elo':
             # Finds a given player's elo
             if (len(args) >= 2):
-                profile = ''
-                for a in args[1:]:
-                    profile = profile + str(a) + ' '
-                profile = profile[:-1]
-                url = "https://u.gg/lol/profile/euw1/{}/overview".format(profile)
-                response = requests.get(url)
-                soup = BeautifulSoup(response.text, "html.parser")
-                aas = soup.find_all("div", class_="rank-text")
+                async with message.channel.typing():
+                    profile = ''
+                    for a in args[1:]:
+                        profile = profile + str(a) + ' '
+                    profile = profile[:-1]
+                    url = "https://u.gg/lol/profile/euw1/{}/overview".format(profile)
+                    chrome_options = Options()  
+                    chrome_options.add_argument("--headless") # Opens the browser up in background
+
+                    response = ''
+                    with Chrome(options=chrome_options) as browser:
+                        browser.get(url)
+                        try:
+                            wait = WebDriverWait(browser, 20)
+                            wait.until(ec.title_contains("LoL Profile for"));
+                            print(browser.title)
+                            response = browser.page_source
+                        finally:
+                            browser.quit()
+                            # await message.channel.send('Request timed out')
+                            # return
+                    soup = BeautifulSoup(response, "html.parser")
+                    # with open('response.txt', 'w') as f:
+                    #     print(str(soup), file=f)
+                    aas = soup.find_all("div", class_="rank-text")
                 if (len(aas) == 0):
                     await message.channel.send('Could not find ranked information for `' + profile + '` (EUW)')
                 else:
-                    colstr = aas[0].find_all('strong')[0]['style'][7:]
-                    if(colstr == ""):
-                        colstr = aas[1].find_all('strong')[0]['style'][7:]
-                    col = 'ffffff'
+                    rankText = aas[0].find_all('strong')[0]
+                    if rankText.text != 'Unranked':
+                        colstr = rankText['style'][7:]
+                        if(colstr == ""):
+                            colstr = aas[1].find_all('strong')[0]['style'][7:]
+                        colstr.replace(' ','')
+                        rgbColStr = colstr[colstr.find("(")+1:colstr.find(")")].split(",")
+                        colstr = '%02x%02x%02x' % (int(rgbColStr[0]), int(rgbColStr[1]), int(rgbColStr[2]))
+                    else:
+                        colstr = ''
+                    col = '000000'
                     if (len(colstr) == 0):
-                        col = hex(int('ffffff', 16))
+                        col = hex(int('000000', 16))
                     else:
                         col = hex(int(colstr, 16))
                     elo=discord.Embed(title='Elo for: **__' + str(profile) + '__**', color=int(col, 16))
                     elo.add_field(name='Ranked Solo/Duo', value=aas[0].text, inline=True)
-                    if len(aas) == 2:
-                        elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
+                    if len(aas) > 1:
+                        print("Flex rank = " + aas[1].text)
+                        if len(aas[1].text) > 2:
+                            elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
                     elo.set_footer(text='Stats according to u.gg')
                     await message.channel.send(embed=elo)
             else:
@@ -368,7 +406,14 @@ async def on_message(message):
                                         roles = roles = roles[:-1]
                                     sql = "UPDATE roles SET roles = ? WHERE id = ?"
                                     cursor.execute(sql, [(roles), (message.author.id)])
-                                    await message.channel.send('Ok, <@{}> updated roles are: '.format(id) + roles)
+                                    # await message.channel.send('Ok, <@{}> updated roles are: '.format(id) + roles)
+                                    embedTitle = "Ok, __*{}*__'s updated roles are:".format(message.author.name)
+                                    roleList = roles.split(',')
+                                    description = ''
+                                    for r in roleList:
+                                        description += r + "\n"
+                                    removed=discord.Embed(title=embedTitle, description=description, color=0x76105b)
+                                    await message.channel.send(embed=removed)
                             else:
                                 # get data from first object
                                 value_of_field_1 = data[0][0]
@@ -395,6 +440,7 @@ async def on_message(message):
                     invalidroles = []
                     preexistingroles = []
                     insertroles = ''
+                    newroles = list(dict.fromkeys(newroles))
                     for nr in newroles:
                         if not validroles.__contains__(nr):
                             invalidroles.append(nr)
@@ -425,6 +471,7 @@ async def on_message(message):
                         invalidroles = []
                         preexistingroles = []
                         insertroles = ''
+                        newroles = list(dict.fromkeys(newroles))
                         for nr in newroles:
                             if not validroles.__contains__(nr):
                                 invalidroles.append(nr)
@@ -447,7 +494,12 @@ async def on_message(message):
                                 value_of_field_2 = data[2][1]
                         else:
                             description = '(No change) ' + str(roles)
-                        added=discord.Embed(title='Updated roles', description=description, color=0x76105b)
+                        
+                        roleList = description.split(",")
+                        description = ""
+                        for r in roleList:
+                            description += r + "\n"
+                        added=discord.Embed(title='Ok, __*{}*__\'s updated roles:'.format(message.author.name), description=description, color=0x76105b)
                         if len(invalidroles) > 0:
                             added.add_field(name='Invalid roles (not added)', value=str(invalidroles), inline=False)
                         if len(preexistingroles) > 0:
@@ -458,7 +510,7 @@ async def on_message(message):
                         conn.close()
             else:
                 await message.channel.send('Please specify roles you want to add')
-        if message.content.startswith('!checkroles'):
+        if message.content.startswith('!checkroles') or message.content.startswith('!roles'):
             # return current roles
             conn = sqlite3.connect('scrims.db')
             cursor = conn.cursor()
@@ -471,7 +523,12 @@ async def on_message(message):
                 msg = "You haven't assigned your roles yet!"
             else:
                 (id, msg) = data[0]
-            await message.channel.send(msg)
+            roles = msg.split(",")
+            description = ""
+            for r in roles:
+                description += r + "\n"
+            checkRoles=discord.Embed(title='Roles for ' + message.author.name, description=description, color=0x76105b)
+            await message.channel.send(embed=checkRoles)
         
 
 client.run(os.getenv('TOKEN'))
