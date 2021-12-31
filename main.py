@@ -138,10 +138,13 @@ async def on_message(message):
                     with Chrome(options=chrome_options) as browser:
                         browser.get(url)
                         try:
-                            wait = WebDriverWait(browser, 20)
+                            wait = WebDriverWait(browser, 10)
                             wait.until(ec.title_contains("LoL Profile for"));
                             print(browser.title)
                             response = browser.page_source
+                        except:
+                            await message.channel.send('Could not find ranked information for `' + profile + '` (EUW), or request time out')
+                            return
                         finally:
                             browser.quit()
                             # await message.channel.send('Request timed out')
@@ -174,7 +177,7 @@ async def on_message(message):
                         print("Flex rank = " + aas[1].text)
                         if len(aas[1].text) > 2:
                             elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
-                    elo.set_footer(text='Stats according to u.gg')
+                    elo.set_footer(text='Stats according to [u.gg]({})'.format(url))
                     await message.channel.send(embed=elo)
             else:
                 await message.channel.send('Enter the name of the player to lookup')
