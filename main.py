@@ -7,9 +7,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 
-import requests
-import urllib.request
-import shutil
+# import requests
+# import urllib.request
+# import shutil
 
 import discord
 import networkx as nx
@@ -91,15 +91,16 @@ async def on_message(message):
     # Nsfw message
     if message.content.startswith('!') and ('porn' in message.content or 'nsfw' in message.content or 'hentai' in message.content):
         if message.channel.nsfw:
-            url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
-            response = requests.get(url)
+            await message.channel.send('Not curreently enabled you horny mf xx')
+        #     url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
+        #     response = requests.get(url)
 
-            soup = BeautifulSoup(response.text, "html.parser")
-            aas = soup.find_all("span", class_="thumb")
-            response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
-            soup = BeautifulSoup(response.text, "html.parser")
-            aas = soup.find_all("img")
-            await message.channel.send(aas[2]['src'])
+        #     soup = BeautifulSoup(response.text, "html.parser")
+        #     aas = soup.find_all("span", class_="thumb")
+        #     response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
+        #     soup = BeautifulSoup(response.text, "html.parser")
+        #     aas = soup.find_all("img")
+        #     await message.channel.send(aas[2]['src'])
         else:
             await message.channel.send('Not an nsfw channel you horny bastard xx')
     else:
@@ -133,12 +134,22 @@ async def on_message(message):
                     url = "https://u.gg/lol/profile/euw1/{}/overview".format(profile)
                     chrome_options = Options()  
                     chrome_options.add_argument("--headless") # Opens the browser up in background
-
+                    # chrome_options.add_argument('--disable-gpu')
+                    # chrome_options.add_argument("--disable-infobars")
+                    # chrome_options.add_argument("--disable-extensions")
+                    # chrome_options.add_argument("--no-sandbox")
+                    chrome_options.add_argument('--no-sandbox')
+                    # chrome_options.add_argument("--disable-dev-shm-usage")
+                    chrome_options.add_argument('--remote-debugging-port=9222')
+                    chrome_options.add_argument('--disable-gpu')
+                    if os.getenv('GOOGLE_CHROME_BIN') != 'no':
+                        chrome_options.binary_location = os.getenv('GOOGLE_CHROME_BIN') # Sets chrome path
                     response = ''
                     with Chrome(options=chrome_options) as browser:
                         browser.get(url)
                         try:
-                            wait = WebDriverWait(browser, 10)
+                            print("Waiting until page loads (could take up to 20s")
+                            wait = WebDriverWait(browser, 20)
                             wait.until(ec.title_contains("LoL Profile for"));
                             print(browser.title)
                             response = browser.page_source
@@ -534,4 +545,5 @@ async def on_message(message):
             await message.channel.send(embed=checkRoles)
         
 
-client.run(os.getenv('TOKEN'))
+print(os.getenv('ACCESS_TOKEN'))
+client.run(os.getenv('ACCESS_TOKEN'))
