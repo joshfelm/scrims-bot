@@ -177,7 +177,7 @@ async def on_message(message):
                         print("Flex rank = " + aas[1].text)
                         if len(aas[1].text) > 2:
                             elo.add_field(name='Ranked Flex', value=aas[1].text, inline=True)
-                    elo.set_footer(text='Stats according to [u.gg]({})'.format(url))
+                    elo.set_footer(text='Stats according to u.gg')
                     await message.channel.send(embed=elo)
             else:
                 await message.channel.send('Enter the name of the player to lookup')
