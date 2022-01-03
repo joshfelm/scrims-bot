@@ -111,11 +111,12 @@ async def on_message(message):
             info.add_field(name='__Removing roles__ - `!remove`', value='Remove your roles in the same way using `!removeroles` or `!remove`', inline=False)
             info.add_field(name='__Checking roles__ - `!roles`', value='Check to see your currently stored roles with `!roles` or `!checkroles`', inline=False)
             info.add_field(name='__Queueing__ - `!q`', value='Use `!q` or `!queue` to queue up and `!leave` to leave', inline=False)
-            info.add_field(name='__Report score__ - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
+            info.add_field(name='__Show queue__ - `!show`', value='Use `!show` to list the current queue members', inline=False)
+            info.add_field(name='__Reporting score__ - `!report`', value='Use `!report win` to report a win for your team or lose for vice versa. \nUse `!report remake` if you decide to cancel the game', inline=False)
             info.add_field(name='__See standings__ - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
             info.add_field(name='__Check elo__ - `!elo summoner`', value='Check your elo and have it come up in a text channel!', inline=False)
             info.add_field(name='__See random tip__ - `!tip`', value='Get a random loading screen tip', inline=False)
-            info.add_field(name='`!cefsmitesim`', value='See if youcef was able to smite drake succesfully this time!', inline=False)
+            info.add_field(name='`!cefsmitesim`', value='See if youcef was able to smite drake succesfully this time', inline=False)
             await message.channel.send(embed=info)
         elif args[0] == '!tip':
             with open('lolfacts.txt') as f:
@@ -303,7 +304,7 @@ async def on_message(message):
                         inQ = True
                         q.remove((pid,roles))
                 if inQ:
-                    desc = '<@{}> left.'.format(id)
+                    desc = '__**{}**__ left.'.format(message.author.name)
                     leaveQ=discord.Embed(title=str(len(q)) + ' players currently in queue', description=desc, color=0x76105b)
                     await message.channel.send(embed=leaveQ)
                 else:
@@ -339,7 +340,7 @@ async def on_message(message):
                     q.append((id,rolesindex))
                     if len(q) < 10:
                         # await message.channel.send('Ok, joined queue. There are currently ' + str(len(q)) + ' People in the queue')
-                        embedVal = '<@{}> has joined.'.format(id)
+                        embedVal = '__**{}**__ has joined.'.format(message.author.name)
                         joinQ=discord.Embed(title=str(len(q)) + ' players are currently in the queue', description=embedVal, color=0x76105b)
                         # joinQ.add_field(name='\u200b', value=embedVal, inline=False)
                         await message.channel.send(embed=joinQ)
@@ -421,7 +422,7 @@ async def on_message(message):
                                     sql = "UPDATE roles SET roles = ? WHERE id = ?"
                                     cursor.execute(sql, [(roles), (message.author.id)])
                                     # await message.channel.send('Ok, <@{}> updated roles are: '.format(id) + roles)
-                                    embedTitle = "Ok, __*{}*__'s updated roles are:".format(message.author.name)
+                                    embedTitle = "Ok, __**{}**__'s updated roles are:".format(message.author.name)
                                     roleList = roles.split(',')
                                     description = ''
                                     for r in roleList:
@@ -468,7 +469,7 @@ async def on_message(message):
                         cursor.execute(sql, [(message.author.id), 0, 0])
                         conn.commit()
                         conn.close()
-                        added=discord.Embed(title='<@{}> added to database'.format(message.author.id), color=0x76105b)
+                        added=discord.Embed(title='__**{}**__ added to database'.format(message.author.name), color=0x76105b)
                         added.add_field(name='Roles', value=insertroles, inline=False)
                         if len(invalidroles) > 0:
                             added.add_field(name='Invalid roles (not added)', value=str(invalidroles), inline=False)
@@ -545,5 +546,5 @@ async def on_message(message):
             await message.channel.send(embed=checkRoles)
         
 
-print(os.getenv('ACCESS_TOKEN'))
+# print(os.getenv('ACCESS_TOKEN'))
 client.run(os.getenv('ACCESS_TOKEN'))
