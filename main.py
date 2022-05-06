@@ -126,6 +126,9 @@ async def on_message(message):
         # Information
         for a in args:
             a = a.lower()
+        if message.channel.id == 972118405631062056 and args[0] not in ['!add', '!remove', '!roles', '!checkroles','!addroles', '!removeroles','!a','!r'] and not message.author.id == 800397947766440007:
+            await message.delete()
+            return
         if args[0] == KEY_CHAR + 'info' or args[0] == KEY_CHAR + 'help':
             info=discord.Embed(title='Commands:', color=0x76105b)
             info.add_field(name='__Adding roles__ - `!add`', value='Add your role using the `!addroles` or `!add` command. It would look something like \n`!addroles top jungle mid adc support` \nThis will automatically add you to the database on first use', inline=False)
@@ -145,6 +148,8 @@ async def on_message(message):
             content = [x.strip() for x in content] 
             await message.channel.send(content[random.randint(0,len(content)-1)])
         elif args[0] == KEY_CHAR + 'elo':
+            await message.channel.send('Disabled for now')
+            return
             # Finds a given player's elo
             if (len(args) >= 2):
                 async with message.channel.typing():
@@ -301,7 +306,6 @@ async def on_message(message):
                 await message.channel.send(embed=showQ)
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
-        #COPYPASTAS
         elif args[0] == KEY_CHAR + 'leave' and q_id != None:
             # Leave queue
             if len(dict_q[q_id]) > 0:
@@ -573,7 +577,7 @@ async def on_message(message):
                 await message.channel.send("Role 'diamond+' added")
                 await user.add_roles(role)
             else:
-                await message.channel.send("Invalid role specified")
+                await message.channel.send("Invalid role specified, please choose either `plat` or `diamond`")
         elif args[0] == KEY_CHAR + 'r':
             if message.channel.id != 972118405631062056:
                 await message.delete()
@@ -591,7 +595,7 @@ async def on_message(message):
                 await user.remove_roles(role)
                 await message.channel.send("Role 'diamond+' removed")
             else:
-                await message.channel.send("Invalid role specified")
+                await message.channel.send("Invalid role specified, please choose either `plat` or `diamond`")
 
 
         elif message.content.startswith(KEY_CHAR + 'checkroles') or message.content.startswith(KEY_CHAR + 'roles'):
