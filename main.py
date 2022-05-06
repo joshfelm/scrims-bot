@@ -25,7 +25,7 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 import os
 
 # roles [top, jg, mid, adc, supp]
-KEY_CHAR = '$'
+KEY_CHAR = '!'
 dc_client  = discord.Client()
 mongo_client = pymongo.MongoClient(os.getenv('MONGODB_URI'))
 roles_db = mongo_client.users.roles
