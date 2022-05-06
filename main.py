@@ -5,6 +5,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
+import pymongo
+import re
 
 
 # import requests
@@ -12,6 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 # import shutil
 
 import discord
+# from discord.ext import get
 import networkx as nx
 import random
 import sqlite3
@@ -22,19 +25,28 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 import os
 
 # roles [top, jg, mid, adc, supp]
-client  = discord.Client()
-a = [0,1,0,1,0] # 0
-b = [1,1,1,1,0] # 1
-c = [0,0,0,1,0] # 2
-d = [0,0,1,0,0] # 3
-e = [0,0,1,0,0] # 4
-f = [0,1,0,0,0] # 5
-g = [1,1,1,0,0] # 6
-h = [1,1,1,0,0] # 7
+KEY_CHAR = '$'
+dc_client  = discord.Client()
+mongo_client = pymongo.MongoClient(os.getenv('MONGODB_URI'))
+roles_db = mongo_client.users.roles
+results_db = mongo_client.users.results
+A = [0,1,0,1,0] # 0
+B = [1,1,1,1,0] # 1
+C = [0,0,0,1,0] # 2
+D = [0,0,1,0,0] # 3
+E = [0,0,1,0,0] # 4
+F = [0,1,0,0,0] # 5
+G = [1,1,1,0,0] # 6
+H = [1,1,1,0,0] # 7
 I = [1,1,1,1,0] # 8
-j = [1,0,1,1,0] # 9
+J = [1,0,1,1,0] # 9
 
-q = []
+dict_q = {
+    'plat': [],
+    'diamond': [],
+    'universal': [],
+}
+
 gameTeam1 = []
 gameTeam2 = []
 validroles = ['top','jungle','mid','adc','support']
@@ -42,12 +54,12 @@ validroles = ['top','jungle','mid','adc','support']
 #split into two teams, matching maximum amount of players
 def split_teams(ids, players):
     autofill = False
+    # print(players)
     for p in players:
         p.extend(p)
     order = list(range(0,10))
     n = 0
     random.shuffle(order)
-    print('order',order)
     shuffle_player = []
     for i in order:
         shuffle_player.append(players[i])
@@ -72,40 +84,49 @@ def split_teams(ids, players):
     team2 = actual_team[5:]
     return((team1,team2,autofill))
 
-@client.event
+@dc_client.event
 async def on_ready():
-    print('Logged in as {0.user}'.format(client))
+    print('Logged in as {0.user}'.format(dc_client))
 
 # Handle messages
-@client.event
+@dc_client.event
 async def on_message(message):
     # Ignore if message is from bot
-    if message.author == client.user:
+    if message.author == dc_client.user:
         return
     args = str(message.content).split()
-    if message.content.startswith('$testscrim'):
-        # sample scrim with players a-j
-        global q
-        q.extend([('1',a),('2',b),('3',c),('4',d),('5',e),('6',f),('7',g),('8',h)])
-        await message.channel.send('9 players in q')
-    # Nsfw message
-    if message.content.startswith('!') and ('porn' in message.content or 'nsfw' in message.content or 'hentai' in message.content):
-        if message.channel.nsfw:
-            await message.channel.send('Not curreently enabled you horny mf xx')
-        #     url = "https://rule34.xxx/?page=post&s=list&tags=league_of_legends&pid=" + str(random.randint(0,10000))
-        #     response = requests.get(url)
-
-        #     soup = BeautifulSoup(response.text, "html.parser")
-        #     aas = soup.find_all("span", class_="thumb")
-        #     response = requests.get('https://rule34.xxx/' + aas[0].find("a")['href'])
-        #     soup = BeautifulSoup(response.text, "html.parser")
-        #     aas = soup.find_all("img")
-        #     await message.channel.send(aas[2]['src'])
-        else:
-            await message.channel.send('Not an nsfw channel you horny bastard xx')
+    q_id = ''
+    if (message.channel.id == 972100383973457940 or message.channel.id == 971802769939914764):
+        #diamond
+        q_id = 'diamond'
+    elif (message.channel.id == 972100426562408508 or message.channel.id == 971802813581623316):
+        #plat
+        q_id = 'plat'
+    elif (message.channel.id == 972099970259894302):
+        #universal
+        q_id = 'universal'
     else:
+        q_id = None
+    if message.content.startswith('$testscrim') and q_id != None:
+        # sample scrim with players a-j
+        list_fellas = [('1',A),('2',B),('3',C),('4',D),('5',E),('6',F),('7',G),('8',H)]
+        # list_fellas = [('1',A),('8',H)]
+        for l in list_fellas:
+            dict_q[q_id].append(l)
+        await message.channel.send(str(len(dict_q[q_id])) + ' players in q')
+    elif message.content.startswith('$testscri2') and q_id != None:
+        # sample scrim with players a-j
+        list_fellas = [('1',A)]
+        # list_fellas = [('1',A),('8',H)]
+        for l in list_fellas:
+            dict_q[q_id].append(l)
+        await message.channel.send(str(len(dict_q[q_id])) + ' players in q')
+    else:
+        # return # DISABLE ! COMMANDS FOR NOW
         # Information
-        if args[0] == '!info' or args[0] == '!help':
+        for a in args:
+            a = a.lower()
+        if args[0] == KEY_CHAR + 'info' or args[0] == KEY_CHAR + 'help':
             info=discord.Embed(title='Commands:', color=0x76105b)
             info.add_field(name='__Adding roles__ - `!add`', value='Add your role using the `!addroles` or `!add` command. It would look something like \n`!addroles top jungle mid adc support` \nThis will automatically add you to the database on first use', inline=False)
             info.add_field(name='__Removing roles__ - `!remove`', value='Remove your roles in the same way using `!removeroles` or `!remove`', inline=False)
@@ -116,15 +137,14 @@ async def on_message(message):
             info.add_field(name='__See standings__ - `!table`', value='Use `!leaderboard` or `!table` to see the current standings (sorted by games won)', inline=False)
             info.add_field(name='__Check elo__ - `!elo summoner`', value='Check your elo and have it come up in a text channel!', inline=False)
             info.add_field(name='__See random tip__ - `!tip`', value='Get a random loading screen tip', inline=False)
-            info.add_field(name='`!cefsmitesim`', value='See if youcef was able to smite drake succesfully this time', inline=False)
             await message.channel.send(embed=info)
-        elif args[0] == '!tip':
+        elif args[0] == KEY_CHAR + 'tip':
             with open('lolfacts.txt') as f:
                 content = f.readlines()
             # you may also want to remove whitespace characters like `\n` at the end of each line
             content = [x.strip() for x in content] 
             await message.channel.send(content[random.randint(0,len(content)-1)])
-        elif args[0] == '!elo':
+        elif args[0] == KEY_CHAR + 'elo':
             # Finds a given player's elo
             if (len(args) >= 2):
                 async with message.channel.typing():
@@ -193,18 +213,10 @@ async def on_message(message):
                     await message.channel.send(embed=elo)
             else:
                 await message.channel.send('Enter the name of the player to lookup')
-        elif args[0] == '!cefsmitesim':
-            smitechance = random.randint(0,100)
-            if smitechance >= 95:
-                await message.channel.send('Uh oh, youcef smited your cannon!')
-            elif smitechance >= 85:
-                await message.channel.send('Youcef successfully smited drake!')
-            elif smitechance >= 75:
-                await message.channel.send('What the fuck, Youcef is farming krugs')
-            else:
-                await message.channel.send('Youcef missed smite! (AGAIN)')
         # Show table
-        elif args[0] == '!table' or args[0] == '!leaderboard':
+        elif args[0] == KEY_CHAR + 'table' or args[0] == KEY_CHAR + 'leaderboard':
+            await message.channel.send('Coming soon!')
+            return
             sql = "SELECT * FROM results ORDER BY w DESC"
             conn = sqlite3.connect('scrims.db')
             cursor = conn.cursor()
@@ -226,8 +238,10 @@ async def on_message(message):
                 pos+=1
             
             await message.channel.send(embed=table)
-        elif args[0] == '!report':
+        elif args[0] == KEY_CHAR + 'report':
             # Report score
+            await message.channel.send('Coming soon!')
+            return
             id = message.author.id
             team = 2
             global gameTeam1
@@ -276,56 +290,46 @@ async def on_message(message):
                     conn.close()
                 gameTeam1 = []
                 gameTeam2 = []
-        elif args[0] == '!show':
+        elif args[0] == KEY_CHAR + 'show' and q_id != None:
             # Show queue
-            if len(q) > 0:
+            if len(dict_q[q_id]) > 0:
                 msg = ''
-                for (id,roles) in q:
+                for (id,roles) in dict_q[q_id]:
                     msg = msg + '<@{}>'.format(id) + '\n'
                 msg = msg[:-1]
-                showQ=discord.Embed(title=str(len(q)) + ' players currently in queue', description=msg, color=0x76105b)
+                showQ=discord.Embed(title=str(len(dict_q[q_id])) + ' players currently in queue', description=msg, color=0x76105b)
                 await message.channel.send(embed=showQ)
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
         #COPYPASTAS
-        elif args[0] == '!stfu' or args[0] == '!shut':
-            await message.channel.send("I know you have something to say and I know you're eager to say it so I'll get right to the point: Shut the fuck up. Nobody wants to hear it. Nobody will ever want to hear it. Nobody cares. And the fact that you thought someone might care is honestly baffling to me. I've actually pulled the entire world. Here's a composite of the faces of everybody who wants you to shut the fuck up. It seems as if this is a composite of every human being on the planet. Interesting. Now for a composite of the faces that want you to keep talking: Interesting it seems as if nothing has happened. Here's the world map. Now here's the text: Shit the fuck up. That's what you should do. But you know what? Maybe I am being a little too harsh here. I actually do have it on good authority thanks to my pulling data that there is as at least 1 person who actually wants to hear you speak. It's a little child in Mozambique and he- oh? He's dead? Well sorry man I guess nobody wants to hear you talk anymore. Please shut the fuck up. I'm not just telling you to shut up, I'm telling you to shut the FUCK up and you need to hear it. This is a public service. I have nothing to gain from this, except by telling YOU exactly what you need to hear. And on that note let me make this clear: This isn't a broad message I'm aiming at all of you, this is a message specifically pointed at you. That's right! You! You know who you are. And I'm sick of your shit. We all are. The only good you will ever do for humanity is refusing to participate in it. You can take a vow of silence, join a monastery, you can even just be a mime! Mimes are fun. But you kinda know that what I'm saying is true already don't you?")
-            await message.channel.send("You understand that you really should shut the fuck up, why do you keep speaking? I'm genuinely curious. Why do you think you deserve to be heard? The core of what I'm getting at is that you are not a worthwhile person. You are not worth listening to. Everything you've said has been said before more eloquently and more coherently. And it's not that everything has been said we still need people to have discourse in order to say new things and discover new things about ourselves and humanity but you, you will never be those people so shut the fuck up.")
-            await message.channel.send("<@245619552438845461>")
-        elif args[0] == '!based':
-            await message.channel.send("Based? Based on what? In your dick? Please shut the fuck up and use words properly you fuckin troglodyte, do you think God gave us a freedom of speech just to spew random words that have no meaning that doesn't even correllate to the topic of the conversation? Like please you always complain about why no one talks to you or no one expresses their opinions on you because you're always spewing random shit like poggers based cringe and when you try to explain what it is and you just say that it's funny like what? What the fuck is funny about that do you think you'll just become a stand-up comedian that will get a standing ovation just because you said \"cum\" in the stage? HELL NO YOU FUCKIN IDIOT, so please shut the fuck up and use words properly you dumb bitch")
-        elif args[0] == '!leave':
+        elif args[0] == KEY_CHAR + 'leave' and q_id != None:
             # Leave queue
-            if len(q) > 0:
+            if len(dict_q[q_id]) > 0:
                 id = str(message.author.id)
                 inQ = False
-                for (pid,roles) in q:
+                for (pid,roles) in dict_q[q_id]:
                     if (str(pid) == id):
                         inQ = True
-                        q.remove((pid,roles))
+                        dict_q[q_id].remove((pid,roles))
                 if inQ:
                     desc = '__**{}**__ left.'.format(message.author.name)
-                    leaveQ=discord.Embed(title=str(len(q)) + ' players currently in queue', description=desc, color=0x76105b)
+                    leaveQ=discord.Embed(title=str(len(dict_q[q_id])) + ' players currently in queue', description=desc, color=0x76105b)
                     await message.channel.send(embed=leaveQ)
                 else:
-                    await message.channel.send('You\'re not even in the queue!')
+                    await message.channel.send('You\'re not in the queue right now')
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
-        elif args[0] == '!q':
+        elif args[0] == KEY_CHAR + 'q' and q_id != None:
             #Join q
-            conn = sqlite3.connect('scrims.db')
-            cursor = conn.cursor()
-            # get stored object from database
-            sql = "SELECT * FROM roles WHERE id = ?"
-            cursor.execute(sql, (message.author.id,))
-            data = cursor.fetchall()
-            if len(data) == 0:
+            data = roles_db.find_one({'_id': message.author.id})
+            if data == None:
                 await message.channel.send('You\'re not set up yet. Add your roles to join the queue')
             else:
-                (id, roles) = data[0]
+                id = data['_id']
+                roles = data['roles']
                 inq = False
-                for (q_id, _) in q:
-                    if q_id == id:
+                for (user_id, _) in dict_q[q_id]:
+                    if user_id == id:
                         inq = True
                 if inq:
                     await message.channel.send('You\'re already in the queue!')
@@ -337,22 +341,20 @@ async def on_message(message):
                             rolesindex.append(1)
                         else:
                             rolesindex.append(0)
-                    q.append((id,rolesindex))
-                    if len(q) < 10:
+                    dict_q[q_id].append((id,rolesindex))
+                    if len(dict_q[q_id]) < 10:
                         # await message.channel.send('Ok, joined queue. There are currently ' + str(len(q)) + ' People in the queue')
                         embedVal = '__**{}**__ has joined.'.format(message.author.name)
-                        joinQ=discord.Embed(title=str(len(q)) + ' players are currently in the queue', description=embedVal, color=0x76105b)
+                        joinQ=discord.Embed(title=str(len(dict_q[q_id])) + ' players are currently in the queue', description=embedVal, color=0x76105b)
                         # joinQ.add_field(name='\u200b', value=embedVal, inline=False)
                         await message.channel.send(embed=joinQ)
                     else:
                         ids = []
                         qroles = []
-                        atMessage = ''
-                        for (id,qrole) in q:
+                        for (id,qrole) in dict_q[q_id]:
+                            print(qrole)
                             ids.append(id)
-                            atMessage = atMessage + '<@{}>'.format(id)
                             qroles.append(qrole)
-                        await message.channel.send(atMessage)
                         (team1,team2,autofill) = split_teams(ids, qroles)
                         gameTeam1 = team1
                         gameTeam2 = team2
@@ -361,7 +363,6 @@ async def on_message(message):
                         else:
                             description = 'No autofilled players in this, feel free to swap roles among yourselves'
                         embed=discord.Embed(title='Queue Popped!', description=description, color=0x76105b)
-                        q = []
                         team1Msg = ''
                         team2Msg = ''
                         for i in range(len(team1)):
@@ -372,29 +373,48 @@ async def on_message(message):
                             team2Msg = team2Msg + validroles[i] + ': <@{}>'.format(team2[i]) + '\n'
                         team2Msg = team2Msg[:-1]
                         embed.add_field(name='-Team 2-', value=team2Msg, inline=True)
+                        embed.add_field(name='Lobby creator', value='<@{}>'.format(ids[random.randint(0,9)]))
+                        match_id = 'cc' + str(random.randint(1000,9999))
+                        match_pass = str(random.randint(1000,9999))
+                        info_embed=discord.Embed(title='Lobby Details', description='**lobby name:** {} \n **password: **{}'.format(match_id, match_pass),color=0x76105b)
+                        for (id,qrole) in dict_q[q_id]:
+                            user = 'pass'
+                            if int(id) > 10:
+                                user = await dc_client.fetch_user(int(id))
+                            if user != 'pass':
+                                await user.send('Your queue has popped! Please join the lobby chat')
+                                await user.send(embed=embed)
+                                await user.send(embed=info_embed)
+                        dict_q[q_id] = []
+                        q = []
                         await message.channel.send(embed=embed)
-        elif args[0] == '!removeroles' or args[0] == '!remove':
+        elif (args[0] == KEY_CHAR + 'removeroles' or args[0] == KEY_CHAR + 'remove'):
+            if message.channel.id != 972118405631062056:
+                await message.delete()
+                return
             #remove role
             if len(args) > 1:
-                conn = sqlite3.connect('scrims.db')
-                cursor = conn.cursor()
-                # get stored object from database
-                print(message.author.id)
-                sql = "SELECT * FROM roles WHERE id = ?"
-                cursor.execute(sql, (message.author.id,))
-                data = cursor.fetchall()
-                if len(data) == 0:
+                data = roles_db.find_one({'_id': message.author.id})
+                if data == None:
                     await message.channel.send('You aren\'t on the database. Use !addroles before you remove them xx')
                 else:
-                    (id, roles) = data[0]
+                    id = data['_id']
+                    roles = data['roles']
                     removeroles = args[1:]
                     if len(removeroles) > 5:
-                        await message.channel.send('Too many roles (you daft clown), none added')
+                        await message.channel.send('Too many roles (you daft clown), none removed')
                     else:
                         invalidroles = []
                         preexistingroles = []
                         insertroles = []
                         for nr in removeroles:
+                            nr.lower()
+                            if nr in ['supp', 'sup']:
+                                nr = 'support'
+                            if nr == 'jg':
+                                nr = 'jungle'
+                            if nr in ['bot', 'bottom']:
+                                nr = 'adc'
                             if not validroles.__contains__(nr):
                                 invalidroles.append(nr)
                             elif not nr in roles:
@@ -419,9 +439,14 @@ async def on_message(message):
                                         roles = roles = roles[1:]
                                     if (roles[-1] == ','):
                                         roles = roles = roles[:-1]
-                                    sql = "UPDATE roles SET roles = ? WHERE id = ?"
-                                    cursor.execute(sql, [(roles), (message.author.id)])
+                                    data
                                     # await message.channel.send('Ok, <@{}> updated roles are: '.format(id) + roles)
+                                    newroles = roles
+                                    # sql = "UPDATE roles SET roles = ? WHERE id = ?"
+                                    update_entry = {'$set': {
+                                        'roles': newroles
+                                    }}
+                                    roles_db.update_one({'_id': id}, update_entry)
                                     embedTitle = "Ok, __**{}**__'s updated roles are:".format(message.author.name)
                                     roleList = roles.split(',')
                                     description = ''
@@ -435,28 +460,32 @@ async def on_message(message):
                                 # get data from third object
                                 value_of_field_2 = data[2][1]
                             # close database connection
-                        conn.commit()
-                        conn.close()
             else:
                 await message.channel.send('Please specify roles you want to add')
-        elif args[0] == '!addroles' or args[0] == '!add':
+        elif (args[0] == KEY_CHAR + 'addroles' or args[0] == KEY_CHAR + 'add'):
+            if message.channel.id != 972118405631062056:
+                await message.delete()
+                return
             # add role
             if len(args) > 1:
-                conn = sqlite3.connect('scrims.db')
-                cursor = conn.cursor()
+                data = roles_db.find_one({'_id': message.author.id})
                 # get stored object from database
                 print(message.author.id)
-                sql = "SELECT * FROM roles WHERE id = ?"
-                cursor.execute(sql, (message.author.id,))
-                data = cursor.fetchall()
                 newroles = args[1:]
                 # if object does not exist, create it
-                if len(data) == 0:
+                if data == None:
                     invalidroles = []
                     preexistingroles = []
                     insertroles = ''
                     newroles = list(dict.fromkeys(newroles))
                     for nr in newroles:
+                        nr.lower()
+                        if nr in ['supp', 'sup']:
+                            nr = 'support'
+                        if nr == 'jg':
+                            nr = 'jungle'
+                        if nr in ['bot', 'bottom']:
+                            nr = 'adc'
                         if not validroles.__contains__(nr):
                             invalidroles.append(nr)
                         else:
@@ -464,11 +493,11 @@ async def on_message(message):
                     if len(insertroles) > 0:
                         insertroles = insertroles[:-1]
                         sql = "INSERT INTO roles VALUES (?, ?)"
-                        cursor.execute(sql, [(message.author.id), (insertroles)])
-                        sql = "INSERT INTO results VALUES (?, ?, ?)"
-                        cursor.execute(sql, [(message.author.id), 0, 0])
-                        conn.commit()
-                        conn.close()
+                        new_entry = {
+                            '_id': message.author.id,
+                            'roles': insertroles
+                        }
+                        result = roles_db.insert_one(new_entry)
                         added=discord.Embed(title='__**{}**__ added to database'.format(message.author.name), color=0x76105b)
                         added.add_field(name='Roles', value=insertroles, inline=False)
                         if len(invalidroles) > 0:
@@ -479,7 +508,8 @@ async def on_message(message):
                 else:
                     # Case when player exists on db already
                     print(data)
-                    (id, roles) = data[0]
+                    id = data['_id']
+                    roles = data['roles']
                     if len(newroles) > 5:
                         await message.channel.send('Too many roles detected, maximum 5 roles can be added. Obviously, you stupid, stupid idiot. I\'m not even going to bother adding the right ones if there were any. Retype it now you dog.')
                     else:
@@ -499,8 +529,11 @@ async def on_message(message):
                             # if stored object exist and we need update it
                             if ...:
                                 newroles = roles + ',' + insertroles
-                                sql = "UPDATE roles SET roles = ? WHERE id = ?"
-                                cursor.execute(sql, [(newroles), (message.author.id)])
+                                # sql = "UPDATE roles SET roles = ? WHERE id = ?"
+                                update_entry = {'$set': {
+                                    'roles': newroles
+                                }}
+                                roles_db.update_one({'_id': id}, update_entry)
                                 description=newroles
                             else:
                                 # get data from first object
@@ -521,30 +554,78 @@ async def on_message(message):
                             added.add_field(name='Preexisting roles (not added)', value=str(preexistingroles), inline=False)
                         await message.channel.send(embed=added)
                         # close database connection
-                        conn.commit()
-                        conn.close()
             else:
                 await message.channel.send('Please specify roles you want to add')
-        if message.content.startswith('!checkroles') or message.content.startswith('!roles'):
+        elif args[0] == KEY_CHAR + 'a':
+            if message.channel.id != 972118405631062056:
+                await message.delete()
+                return
+            if len(args) < 2:
+                await message.channel.send("Please include the role you want to add")
+            if (args[1] in ['plat-','plat']):
+                user = message.author
+                role = discord.utils.get(user.guild.roles, name="Plat-")
+                await user.add_roles(role)
+                await message.channel.send("Role 'plat-' added")
+            elif (args[1] in ['diamond+', 'diamond', 'dia']):
+                user = message.author
+                role = discord.utils.get(user.guild.roles, name="Diamond+")
+                await message.channel.send("Role 'diamond+' added")
+                await user.add_roles(role)
+            else:
+                await message.channel.send("Invalid role specified")
+        elif args[0] == KEY_CHAR + 'r':
+            if message.channel.id != 972118405631062056:
+                await message.delete()
+                return
+            if len(args) < 2:
+                await message.channel.send("Please include the role you want to remove")
+            if (args[1] in ['plat-','plat']):
+                user = message.author
+                role = discord.utils.get(user.guild.roles, name="Plat-")
+                await user.remove_roles(role)
+                await message.channel.send("Role 'plat-' removed")
+            elif (args[1] in ['diamond+', 'diamond', 'dia']):
+                user = message.author
+                role = discord.utils.get(user.guild.roles, name="Diamond+")
+                await user.remove_roles(role)
+                await message.channel.send("Role 'diamond+' removed")
+            else:
+                await message.channel.send("Invalid role specified")
+
+
+        elif message.content.startswith(KEY_CHAR + 'checkroles') or message.content.startswith(KEY_CHAR + 'roles'):
+            if message.channel.id != 972118405631062056:
+                await message.delete()
+                return
             # return current roles
-            conn = sqlite3.connect('scrims.db')
-            cursor = conn.cursor()
-            sql = "SELECT * FROM roles WHERE id = ?"
-            cursor.execute(sql, (message.author.id,))
-            data = cursor.fetchall()
+            data = roles_db.find_one({'_id': message.author.id})
             print(data)
             msg = ''
-            if len(data) == 0:
+            if data == None:
                 msg = "You haven't assigned your roles yet!"
             else:
-                (id, msg) = data[0]
+                id = data['_id']
+                msg = data['roles']
             roles = msg.split(",")
             description = ""
             for r in roles:
                 description += r + "\n"
             checkRoles=discord.Embed(title='Roles for ' + message.author.name, description=description, color=0x76105b)
             await message.channel.send(embed=checkRoles)
+        # ADMIN COMMANDS (CHECK ROLE)
+        elif args[0] in [KEY_CHAR + 'del', KEY_CHAR + 'delete']:
+            if len(args) > 1:
+                del_id = int(re.sub('[^0-9]','',args[1]))
+                data = roles_db.find_one({'_id': int(del_id)})
+                if data != None:
+                    roles_db.delete_one({'_id': del_id})
+                    await message.channel.send('Deleted <@{}> from db'.format(del_id))
+                else:
+                    await message.channel.send('Couldn\'t find user')
+
         
 
 # print(os.getenv('ACCESS_TOKEN'))
-client.run(os.getenv('ACCESS_TOKEN'))
+dc_client.run(os.getenv('ACCESS_TOKEN'))
+mongo_client
