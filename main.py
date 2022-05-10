@@ -1,3 +1,4 @@
+from time import sleep
 from bs4 import BeautifulSoup
 from selenium.webdriver import Chrome
 from selenium.webdriver.chrome.options import Options
@@ -6,6 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 import pymongo
+import datetime
 import re
 
 
@@ -24,12 +26,16 @@ from scipy.sparse.csgraph import maximum_bipartite_matching
 
 import os
 
+processing_result = False
 # roles [top, jg, mid, adc, supp]
 KEY_CHAR = '!'
 dc_client  = discord.Client()
 mongo_client = pymongo.MongoClient(os.getenv('MONGODB_URI'))
+
 roles_db = mongo_client.users.roles
-results_db = mongo_client.users.results
+leaderboard_collection = mongo_client.leaderboard
+games_db = mongo_client.users.games
+
 A = [0,1,0,1,0] # 0
 B = [1,1,1,1,0] # 1
 C = [0,0,0,1,0] # 2
@@ -54,7 +60,7 @@ validroles = ['top','jungle','mid','adc','support']
 #split into two teams, matching maximum amount of players
 def split_teams(ids, players):
     autofill = False
-    # print(players)
+    print(players)
     for p in players:
         p.extend(p)
     order = list(range(0,10))
@@ -121,6 +127,73 @@ async def on_message(message):
         for l in list_fellas:
             dict_q[q_id].append(l)
         await message.channel.send(str(len(dict_q[q_id])) + ' players in q')
+    elif args[0] == '$' + 'showlb':
+        if (args[1] == 'plat'):
+            leaderboard_db = leaderboard_collection.plat
+        if (args[1] == 'dia'):
+            leaderboard_db = leaderboard_collection.dia
+        if (args[1] == 'universal'):
+            leaderboard_db = leaderboard_collection.dia
+        lb_data = leaderboard_db.find({'id': message.author.id})
+        if lb_data != []:
+            for l in lb_data:
+                await message.channel.send(str(l))
+        else:
+            await message.channel.send('No LB data for this user yet')
+    elif args[0] == '$' + 'testmatch':
+        team1 = [216631365288984576] # me
+        team2 = [457302161416781824] # rid and charlie (218011028900937728)
+        # match_id = 1000
+        old_ids = games_db.distinct('match_id')
+        # first match ever
+        print(old_ids)
+        if len(old_ids) == 0:
+            match_id = 1000
+        else:
+            # new match id is one more than old ones
+            match_id = max(old_ids) + 1
+        games_db.insert_one({
+            'match_id': match_id,
+            'q_id': args[1].lower(),
+            'team1': team1,
+            'team2': team2,
+            'resolved': False,
+            'time_finished': None,
+        })
+    elif args[0] == '$' + 'delgames' and "admin" in [y.name.lower() for y in message.author.roles]:
+        games_db.delete_many({})
+        print('Wiped games database')
+    elif args[0] == '$' + 'dellb' and "admin" in [y.name.lower() for y in message.author.roles]:
+        if (args[1].lower() == 'plat'):
+            leaderboard_db = leaderboard_collection.plat
+        elif (args[1].lower() == 'dia'):
+            leaderboard_db = leaderboard_collection.dia
+        elif (args[1].lower() == 'universal'):
+            leaderboard_db = leaderboard_collection.universal
+        else:
+            await message.channel.send('Invalid DB identifier')
+            return
+        leaderboard_db.delete_many({})
+    elif args[0] == '$' + 'showgames':
+        game_data = games_db.find({'resolved': False})
+        for g in game_data:
+            print(g)
+    elif args[0] == '$' + 'usernamefetch':
+        uname_data = roles_db.find_one({'_id': int(args[1])})
+        await message.channel.send(uname_data['username'])
+    elif args[0] == '$' + 'username':
+        username = await dc_client.fetch_user(message.author.id)
+        print(str(username)[:5])
+        # print(dc_client.get_user(message.author.id))
+    elif args[0] == '$' + 'usernameupdate':
+        player_data = list(roles_db.find({}))
+        print(player_data[0])
+        for p in player_data:
+            uname = await dc_client.fetch_user(p['_id'])
+            update_entry = {'$set': {
+                'username': str(uname)[:-5]
+            }}
+            roles_db.update_one({'_id': int(p['_id'])}, update_entry)
     else:
         # return # DISABLE ! COMMANDS FOR NOW
         # Information
@@ -220,7 +293,7 @@ async def on_message(message):
                 await message.channel.send('Enter the name of the player to lookup')
         # Show table
         elif args[0] == KEY_CHAR + 'table' or args[0] == KEY_CHAR + 'leaderboard':
-            await message.channel.send('Coming soon!')
+            await message.channel.send('https://crustacean-corner-website-real.herokuapp.com/')
             return
             sql = "SELECT * FROM results ORDER BY w DESC"
             conn = sqlite3.connect('scrims.db')
@@ -244,57 +317,121 @@ async def on_message(message):
             
             await message.channel.send(embed=table)
         elif args[0] == KEY_CHAR + 'report':
+            global processing_result
+            if processing_result:
+                await message.add_reaction('❌')
+                return
+            processing_result = True
             # Report score
-            await message.channel.send('Coming soon!')
-            return
-            id = message.author.id
-            team = 2
-            global gameTeam1
-            global gameTeam2
-            teams = [gameTeam1, gameTeam2]
-            print(gameTeam1)
-            print(gameTeam2)
-            if gameTeam1.__contains__(str(id)):
-                team = 0
-            elif gameTeam2.__contains__(str(id)):
-                team = 1
-            if team == 2:
-                await message.channel.send('You\'re not playing in any games right now')
-            else:
-                if args[1] == 'lose':
-                    team = (team+1)%2
-                if args[1] == 'remake':
-                    await message.channel.send('Ok, no ones score updated')
+            if not args[1].isnumeric():
+                await message.channel.send('Invalid match id. Report in the form `!report <match id> <result>')
+                processing_result = False
+                return
+            match_id = int(args[1])
+            match_result = args[2].lower()
+            game_data = games_db.find_one({'match_id': match_id, 'resolved': False})
+            print(game_data)
+            if (game_data == None):
+                await message.channel.send('No ongoing match with that ID')
+                processing_result = False
+                return
+            team1 = game_data['team1']
+            team2 = game_data['team2']
+            remake = False
+            if not (message.author.id in team1 or message.author.id in team2):
+                await message.channel.send('You\'re not playing in that match!')
+                processing_result = False
+                return
+            if match_result in ['w', 'win', 'victory']:
+                if message.author.id in team1:
+                    winning_team = team1
+                    losing_team = team2
                 else:
-                    winners = teams[team]
-                    losers = teams[(team+1)%2]
-                    conn = sqlite3.connect('scrims.db')
-                    cursor = conn.cursor()
-                    # get stored object from database
-                    for p in winners:
-                        if len(p) > 2:
-                            print('updating ', p)
-                            sql = "SELECT * FROM results WHERE id = ?"
-                            cursor.execute(sql, (p,))
-                            data = cursor.fetchall()
-                            print(data)
-                            (id, played, wins) = data[0]
-                            sql = "UPDATE results SET w = ? WHERE id = ?"
-                            cursor.execute(sql, [(wins + 1), (p)])
-                            sql = "UPDATE results SET played = ? WHERE id = ?"
-                            cursor.execute(sql, [(played + 1), (p)])
-                    for p in losers:
-                        if len(p) > 2:
-                            sql = "SELECT * FROM results WHERE id = ?"
-                            cursor.execute(sql, (p,))
-                            data = cursor.fetchall()
-                            (id, played, wins) = data[0]
-                            sql = "UPDATE results SET played = ? WHERE id = ?"
-                            cursor.execute(sql, [(played + 1), (p)])
-                    conn.commit()
-                    conn.close()
-                gameTeam1 = []
-                gameTeam2 = []
+                    winning_team = team2
+                    losing_team = team1
+            elif match_result in ['l', 'loss', 'lose']:
+                if message.author.id in team2:
+                    winning_team = team1
+                    losing_team = team2
+                else:
+                    winning_team = team2
+                    losing_team = team1
+            elif match_result in ['remake']:
+                update_entry = {'$set': {
+                    'resolved': True,
+                    'time_finished': datetime.datetime.now()
+                }}
+                # match_data = games_db.find_one({'id': match_id})
+                games_db.update_one({'match_id': match_id}, update_entry)
+                await message.add_reaction('✅')
+                processing_result = False
+                return
+            else:
+                await message.channel.send('Match result must be either win, loss, or remake')
+                processing_result = False
+                return
+            await message.add_reaction('⏳')
+            if (game_data['q_id'] == 'plat'):
+                leaderboard_db = leaderboard_collection.plat
+            elif (game_data['q_id'] == 'diamond'):
+                leaderboard_db = leaderboard_collection.dia
+            elif (game_data['q_id'] == 'universal'):
+                leaderboard_db = leaderboard_collection.universal
+            for p in winning_team:
+                player_data = leaderboard_db.find_one({'id': p, 'q_id': game_data['q_id']})
+                if player_data == None:
+                    # new entry
+                    uname = roles_db.find_one({'_id': p})['username']
+                    leaderboard_db.insert_one({
+                        'id': p,
+                        'q_id': game_data['q_id'],
+                        'username': uname,
+                        'played': 1,
+                        'won': 1,
+                        'lost': 0,
+                        'elo': 110,
+                        'wr': 1
+                    })
+                else:
+                    wr = round(float(player_data['won']+1)/float(player_data['played']+1),2)
+                    update_entry = {'$set': {
+                        'played': player_data['played']+1,
+                        'won': player_data['won']+1,
+                        'elo': max(player_data['elo']+10, 0),
+                        'wr': wr,
+                    }}
+                    leaderboard_db.update_one({'id': p}, update_entry)
+            for p in losing_team:
+                player_data = leaderboard_db.find_one({'id': p})
+                if player_data == None:
+                    # new entry
+                    uname = roles_db.find_one({'_id': p})['username']
+                    leaderboard_db.insert_one({
+                        'id': p,
+                        'q_id': game_data['q_id'],
+                        'username': uname,
+                        'played': 1,
+                        'won': 0,
+                        'lost': 1,
+                        'elo': 100-6,
+                        'wr': 0
+                    })
+                else:
+                    wr = round(float(player_data['won'])/float(player_data['played']+1),2)
+                    update_entry = {'$set': {
+                        'played': player_data['played']+1,
+                        'lost': player_data['lost']+1,
+                        'elo': max(player_data['elo']-6, 0),
+                        'wr': wr,
+                    }}
+                    leaderboard_db.update_one({'id': p}, update_entry)
+            update_entry = {'$set': {
+                'resolved': True,
+                'time_finished': datetime.datetime.now()
+            }}
+            games_db.update_one({'match_id': match_id}, update_entry)
+            processing_result = False
+            await message.add_reaction('✅')
         elif args[0] == KEY_CHAR + 'show' and q_id != None:
             # Show queue
             if len(dict_q[q_id]) > 0:
@@ -306,6 +443,12 @@ async def on_message(message):
                 await message.channel.send(embed=showQ)
             else:
                 await message.channel.send('No queue right now. Type !q or !queue to start one')
+        #COPYPASTAS
+        elif args[0] == KEY_CHAR + 'cancel' and q_id != None and "admin" in [y.name.lower() for y in message.author.roles]:
+            dict_q[q_id] = []
+            embedVal = '__**{}**__ cancelled the queue.'.format(message.author.name)
+            cancelQ=discord.Embed(title=str(len(dict_q[q_id])) + ' players are currently in the queue', description=embedVal, color=0x76105b)
+            await message.channel.send(embed=cancelQ)
         elif args[0] == KEY_CHAR + 'leave' and q_id != None:
             # Leave queue
             if len(dict_q[q_id]) > 0:
@@ -355,17 +498,26 @@ async def on_message(message):
                     else:
                         ids = []
                         qroles = []
+                        # get list of roles and discord ids from queue
                         for (id,qrole) in dict_q[q_id]:
-                            print(qrole)
                             ids.append(id)
                             qroles.append(qrole)
+                        # split into two teams (bipartite matching)
                         (team1,team2,autofill) = split_teams(ids, qroles)
-                        gameTeam1 = team1
-                        gameTeam2 = team2
-                        if autofill:
-                            description = 'Autofill is enabled for some players, feel free to swap roles among yourselves'
+                        # assign match id
+                        old_ids = games_db.distinct('match_id')
+                        # first match ever
+                        if len(old_ids) == 0:
+                            match_id = 1000
                         else:
-                            description = 'No autofilled players in this, feel free to swap roles among yourselves'
+                            # new match id is one more than old ones
+                            match_id = max(old_ids) + 1
+                        # create embed
+                        if autofill:
+                            description = 'Autofill is enabled for some players, feel free to swap roles among yourselves\n**MATCH ID**: '+str(match_id)
+                        else:
+                            description = 'No autofilled players in this, feel free to swap roles among yourselves\n**MATCH ID**: ' + str(match_id)
+                        description += '\nCheck your DMs for lobby information!'
                         embed=discord.Embed(title='Queue Popped!', description=description, color=0x76105b)
                         team1Msg = ''
                         team2Msg = ''
@@ -378,9 +530,21 @@ async def on_message(message):
                         team2Msg = team2Msg[:-1]
                         embed.add_field(name='-Team 2-', value=team2Msg, inline=True)
                         embed.add_field(name='Lobby creator', value='<@{}>'.format(ids[random.randint(0,9)]))
-                        match_id = 'cc' + str(random.randint(1000,9999))
+                        await message.channel.send(embed=embed)
+
+                        
+                        games_db.insert_one({
+                            'match_id': match_id,
+                            'q_id': q_id,
+                            'team1': team1,
+                            'team2': team2,
+                            'resolved': False,
+                            'time_finished': None,
+                        })
+                        match_name = 'cc' + str(match_id)
                         match_pass = str(random.randint(1000,9999))
-                        info_embed=discord.Embed(title='Lobby Details', description='**lobby name:** {} \n **password: **{}'.format(match_id, match_pass),color=0x76105b)
+                        info_embed=discord.Embed(title='Lobby Details', description='**lobby name:** {} \n**password: **{}'.format(match_name, match_pass),color=0x76105b)
+                        # send dms
                         for (id,qrole) in dict_q[q_id]:
                             user = 'pass'
                             if int(id) > 10:
@@ -389,14 +553,11 @@ async def on_message(message):
                                 await user.send('Your queue has popped! Please join the lobby chat')
                                 await user.send(embed=embed)
                                 await user.send(embed=info_embed)
+                        # reset queue
                         dict_q[q_id] = []
-                        q = []
-                        await message.channel.send(embed=embed)
         elif (args[0] == KEY_CHAR + 'removeroles' or args[0] == KEY_CHAR + 'remove'):
             if message.channel.id != 972118405631062056:
                 await message.delete()
-                return
-            #remove role
             if len(args) > 1:
                 data = roles_db.find_one({'_id': message.author.id})
                 if data == None:
@@ -496,10 +657,11 @@ async def on_message(message):
                             insertroles = insertroles + nr + ','
                     if len(insertroles) > 0:
                         insertroles = insertroles[:-1]
-                        sql = "INSERT INTO roles VALUES (?, ?)"
+                        uname = await dc_client.fetch_user(message.author.id)
                         new_entry = {
                             '_id': message.author.id,
-                            'roles': insertroles
+                            'roles': insertroles,
+                            'username': str(uname)[:-5],
                         }
                         result = roles_db.insert_one(new_entry)
                         added=discord.Embed(title='__**{}**__ added to database'.format(message.author.name), color=0x76105b)
